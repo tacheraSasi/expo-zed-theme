@@ -1,0 +1,43 @@
+{
+  "$schema": "https://zed.dev/schema/themes/v0.2.0.json",
+  "name": "Expo",
+  "author": "Generated from VS Code Expo theme",
+  "themes": [
+    {
+      "name": "Expo Light",
+      "appearance": "light",
+      "style": {
+        "editor.background": [255, 255, 255, 1.0],
+        "editor.foreground": [30, 30, 30, 255],
+        "editor.line_number": [139, 141, 152, 1.0],
+        "editor.selection.background": [205, 206, 214, 1.0],
+        "editor.subheader.background": [240, 240, 243, 1.0],
+        "terminal.background": [255, 255, 255, 1.0],
+        "border": [217, 217, 224, 1.0],
+        "border.focused": [5, 136, 240, 1.0],
+        "tab_bar.background": [240, 240, 243, 1.0],
+        "tab.active_background": [252, 252, 253, 1.0],
+        "tab.inactive_background": [240, 240, 243, 1.0],
+        "status_bar.background": [252, 252, 253, 1.0],
+        "title_bar.background": [240, 240, 243, 1.0],
+        "sidebar.background": [252, 252, 253, 1.0],
+        "panel.background": [252, 252, 253, 1.0],
+        "scrollbar.thumb.background": [232, 232, 236, 1.0],
+        "scrollbar.thumb.hover_background": [224, 225, 230, 1.0],
+        "syntax": {
+          "comment": [128, 131, 141, 1.0],
+          "constant.numeric": [171, 100, 0, 1.0],
+          "constant": [247, 107, 21, 1.0],
+          "type": [220, 62, 66, 1.0],
+          "keyword": [43, 154, 102, 1.0],
+          "punctuation": [128, 131, 141, 1.0],
+          "variable": [129, 69, 181, 1.0],
+          "function": [247, 107, 21, 1.0],
+          "property": [5, 136, 240, 1.0],
+          "string": [171, 100, 0, 1.0],
+          "variable.parameter": [247, 107, 21, 1.0]
+        }
+      }
+    }
+  ]
+}
