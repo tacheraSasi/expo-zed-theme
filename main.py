@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+# Load your files
 LIGHT_THEME_JSON = ""
 DARK_THEME_JSON = ""
 
@@ -10,114 +11,107 @@ try:
     with open("vscode-expo-dark.json", "r", encoding="utf-8") as file:
         DARK_THEME_JSON = file.read()
 except FileNotFoundError:
-    print("The file does not exist.")
+    print("One or both files not found: vscode-expo-light.json / vscode-expo-dark.json")
+    exit(1)
 
-def hex_to_rgba(hex_str, alpha=1.0):
-    """Convert #rrggbb or #rrggbbaa to Zed rgba format [r, g, b, a] (0-255)"""
-    hex_str = hex_str.lstrip("#")
-    if len(hex_str) == 8:
-        r, g, b, a = (
-            int(hex_str[0:2], 16),
-            int(hex_str[2:4], 16),
-            int(hex_str[4:6], 16),
-            int(hex_str[6:8], 16) / 255,
-        )
-    else:
-        r, g, b = int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16)
-        a = alpha
-    return [r, g, b, a]
-
-
-def get_color(colors, key, default="#000000"):
-    v = colors.get(key)
-    if v is None or v == "#00000000":
+def hex_to_zed_color(hex_str, alpha=1.0):
+    """Convert #rrggbb or #rrggbbaa → Zed-compatible hex string or null"""
+    if not hex_str or hex_str == "#00000000":
         return None
-    return hex_to_rgba(v)
 
+    hex_str = hex_str.lstrip('#').lower()
+    
+    # Handle 8-digit with alpha
+    if len(hex_str) == 8:
+        r, g, b, a = hex_str[0:2], hex_str[2:4], hex_str[4:6], hex_str[6:8]
+        # If alpha is ff → just return rgb
+        if a == "ff":
+            return f"#{r}{g}{b}"
+        # Otherwise keep rgba (Zed supports it in some places, but safer to skip)
+        return None  # or implement rgba → hex if needed
+
+    # Standard 6-digit
+    if len(hex_str) == 6:
+        return f"#{hex_str}"
+    
+    return None  # invalid → null in Zed
+
+def get_color(colors, key, default=None):
+    v = colors.get(key)
+    if v is None:
+        return default
+    return hex_to_zed_color(v)
 
 def map_syntax(token_colors):
-    """Very rough mapping from common TextMate scopes → Zed syntax keys"""
     syntax = {}
-
     for rule in token_colors:
         fg = rule.get("settings", {}).get("foreground")
         if not fg:
             continue
         scopes = rule["scope"] if isinstance(rule["scope"], list) else [rule["scope"]]
-
         for scope in scopes:
+            color = hex_to_zed_color(fg)
+            if not color:
+                continue
             if "comment" in scope:
-                syntax["comment"] = hex_to_rgba(fg)
-            elif "keyword" in scope and "control" in scope:
-                syntax["keyword"] = hex_to_rgba(fg)
+                syntax["comment"] = color
             elif "keyword" in scope:
-                syntax["keyword"] = hex_to_rgba(fg)
+                syntax["keyword"] = color
             elif "string" in scope:
-                syntax["string"] = hex_to_rgba(fg)
-            elif "constant.numeric" in scope or "constant.character" in scope:
-                syntax["constant.numeric"] = hex_to_rgba(fg)
-            elif "constant" in scope:
-                syntax["constant"] = hex_to_rgba(fg)
-            elif "variable" in scope and "parameter" in scope:
-                syntax["variable.parameter"] = hex_to_rgba(fg)
+                syntax["string"] = color
+            elif "constant.numeric" in scope or "constant" in scope:
+                syntax["constant.numeric"] = color
+            elif "variable.parameter" in scope:
+                syntax["variable.parameter"] = color
             elif "variable" in scope:
-                syntax["variable"] = hex_to_rgba(fg)
+                syntax["variable"] = color
             elif "function" in scope or "entity.name.function" in scope:
-                syntax["function"] = hex_to_rgba(fg)
+                syntax["function"] = color
             elif "type" in scope or "entity.name.type" in scope:
-                syntax["type"] = hex_to_rgba(fg)
-            elif "property" in scope or "support.type.property-name" in scope:
-                syntax["property"] = hex_to_rgba(fg)
+                syntax["type"] = color
+            elif "property" in scope:
+                syntax["property"] = color
             elif "punctuation" in scope or "meta.brace" in scope:
-                syntax["punctuation"] = hex_to_rgba(fg)
+                syntax["punctuation"] = color
 
-    # Fill missing with reasonable defaults if needed
-    syntax.setdefault("comment", hex_to_rgba("#808080"))
-    syntax.setdefault("keyword", hex_to_rgba("#c678dd"))
-    syntax.setdefault("string", hex_to_rgba("#98c379"))
-    syntax.setdefault("function", hex_to_rgba("#61afef"))
-    syntax.setdefault("type", hex_to_rgba("#e5c07b"))
-    syntax.setdefault("variable", hex_to_rgba("#e06c75"))
-    syntax.setdefault("punctuation", hex_to_rgba("#abb2bf"))
+    # Sensible defaults if missing
+    defaults = {
+        "comment": "#777B84",
+        "keyword": "#9A5CD0",
+        "string": "#FFCA16",
+        "function": "#3B9EFF",
+        "type": "#3DD68C",
+        "variable": "#EDEEF0",
+        "constant.numeric": "#FFCA16",
+        "punctuation": "#696E77"
+    }
+    for k, v in defaults.items():
+        syntax.setdefault(k, v)
 
     return syntax
 
-
 def convert_to_zed(theme_json, name, appearance):
-    data = json.loads(theme_json)
-    colors = data["colors"]
+    try:
+        data = json.loads(theme_json)
+    except json.JSONDecodeError as e:
+        print(f"JSON error in {name}: {e}")
+        return None
+
+    colors = data.get("colors", {})
     token_colors = data.get("tokenColors", [])
 
-    zed = {
-        "editor.background": get_color(colors, "editor.background")
-        or [255, 255, 255, 255],
-        "editor.foreground": get_color(colors, "editor.foreground")
-        or [30, 30, 30, 255],
+    zed_style = {
+        "editor.background": get_color(colors, "editor.background", "#111113" if appearance == "dark" else "#ffffff"),
+        "editor.foreground": get_color(colors, "editor.foreground", "#bbbbbb" if appearance == "dark" else "#333333"),
         "editor.line_number": get_color(colors, "editorLineNumber.foreground"),
-        "editor.active_line_number": get_color(
-            colors, "editorLineNumber.activeForeground"
-        ),
+        "editor.active_line_number": get_color(colors, "editorLineNumber.activeForeground"),
         "editor.selection.background": get_color(colors, "editor.selectionBackground"),
-        "editor.inactive_selection.background": get_color(
-            colors, "editor.inactiveSelectionBackground"
-        ),
-        "editor.inlay_hint.background": get_color(colors, "editorInlayHint.background"),
-        "editor.inlay_hint.foreground": get_color(colors, "editorInlayHint.foreground"),
-        "editor.subheader.background": get_color(
-            colors, "editorGroupHeader.tabsBackground"
-        ),
-        "editor.active_line.background": get_color(
-            colors, "editor.lineHighlightBackground", 0.3
-        ),
+        "editor.subheader.background": get_color(colors, "editorGroupHeader.tabsBackground"),
         "editor_gutter.background": get_color(colors, "editorGutter.background"),
-        "terminal.background": get_color(colors, "terminal.background")
-        or get_color(colors, "editor.background"),
-        "terminal.foreground": get_color(colors, "terminal.foreground")
-        or get_color(colors, "editor.foreground"),
-        "border": get_color(colors, "panel.border")
-        or get_color(colors, "sideBar.border"),
-        "border.focused": get_color(colors, "panelTitle.activeBorder")
-        or get_color(colors, "focusBorder"),
+        "terminal.background": get_color(colors, "terminal.background"),
+        "terminal.foreground": get_color(colors, "terminal.foreground"),
+        "border": get_color(colors, "panel.border") or get_color(colors, "sideBar.border"),
+        "border.focused": get_color(colors, "panelTitle.activeBorder") or get_color(colors, "focusBorder"),
         "tab_bar.background": get_color(colors, "editorGroupHeader.tabsBackground"),
         "tab.active_background": get_color(colors, "tab.activeBackground"),
         "tab.inactive_background": get_color(colors, "tab.inactiveBackground"),
@@ -126,38 +120,30 @@ def convert_to_zed(theme_json, name, appearance):
         "sidebar.background": get_color(colors, "sideBar.background"),
         "panel.background": get_color(colors, "panel.background"),
         "scrollbar.thumb.background": get_color(colors, "scrollbarSlider.background"),
-        "scrollbar.thumb.hover_background": get_color(
-            colors, "scrollbarSlider.hoverBackground"
-        ),
+        "scrollbar.thumb.hover_background": get_color(colors, "scrollbarSlider.hoverBackground"),
         "syntax": map_syntax(token_colors),
     }
 
-    # Terminal ANSI colors (fallback to defaults if missing)
-    ansi_map = {
-        "black": "terminal.ansiBlack",
-        "red": "terminal.ansiRed",
-        "green": "terminal.ansiGreen",
-        "yellow": "terminal.ansiYellow",
-        "blue": "terminal.ansiBlue",
-        "magenta": "terminal.ansiMagenta",
-        "cyan": "terminal.ansiCyan",
-        "white": "terminal.ansiWhite",
-        "bright_black": "terminal.ansiBrightBlack",
-        "bright_red": "terminal.ansiBrightRed",
-        "bright_green": "terminal.ansiBrightGreen",
-        "bright_yellow": "terminal.ansiBrightYellow",
-        "bright_blue": "terminal.ansiBrightBlue",
-        "bright_magenta": "terminal.ansiBrightMagenta",
-        "bright_cyan": "terminal.ansiBrightCyan",
-        "bright_white": "terminal.ansiBrightWhite",
+    # Add some terminal ANSI colors if present
+    ansi_keys = {
+        "terminal.black": "terminal.ansiBlack",
+        "terminal.red": "terminal.ansiRed",
+        "terminal.green": "terminal.ansiGreen",
+        "terminal.yellow": "terminal.ansiYellow",
+        "terminal.blue": "terminal.ansiBlue",
+        "terminal.magenta": "terminal.ansiMagenta",
+        "terminal.cyan": "terminal.ansiCyan",
+        "terminal.white": "terminal.ansiWhite",
+        "terminal.bright_black": "terminal.ansiBrightBlack",
+        "terminal.bright_red": "terminal.ansiBrightRed",
+        # ... add more if you want
     }
 
-    for zed_key, vscode_key in ansi_map.items():
-        col = get_color(colors, vscode_key)
+    for zkey, vkey in ansi_keys.items():
+        col = get_color(colors, vkey)
         if col:
-            zed[f"terminal.{zed_key}"] = col
+            zed_style[zkey] = col
 
-    # Final structure
     return {
         "$schema": "https://zed.dev/schema/themes/v0.2.0.json",
         "name": "Expo",
@@ -166,21 +152,21 @@ def convert_to_zed(theme_json, name, appearance):
             {
                 "name": name,
                 "appearance": appearance,
-                "style": {k: v for k, v in zed.items() if v is not None},
+                "style": {k: v for k, v in zed_style.items() if v is not None}
             }
-        ],
+        ]
     }
 
+# Convert and save
+light_theme = convert_to_zed(LIGHT_THEME_JSON, "Expo Light", "light")
+dark_theme  = convert_to_zed(DARK_THEME_JSON,  "Expo Dark",  "dark")
 
-# Convert both
-light_zed = convert_to_zed(LIGHT_THEME_JSON, "Expo Light", "light")
-dark_zed = convert_to_zed(DARK_THEME_JSON, "Expo Dark", "dark")
+if light_theme:
+    Path("expo-light-zed.json").write_text(json.dumps(light_theme, indent=2))
+    print("Created: expo-light-zed.json")
 
-# Save to files
-Path("expo-light-zed.json").write_text(json.dumps(light_zed, indent=2))
-Path("expo-dark-zed.json").write_text(json.dumps(dark_zed, indent=2))
+if dark_theme:
+    Path("expo-dark-zed.json").write_text(json.dumps(dark_theme, indent=2))
+    print("Created: expo-dark-zed.json")
 
-print("Created:")
-print("  expo-light-zed.json")
-print("  expo-dark-zed.json")
-print("\nYou can now copy them to ~/.config/zed/themes/")
+print("\nDone. Copy them to ~/.config/zed/themes/")
