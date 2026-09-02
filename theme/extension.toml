@@ -1,0 +1,7 @@
+id = "expo"
+name = "Expo"
+version = "0.0.1"
+schema_version = 1
+authors = ["Tachera Sasi"]
+description = "expo"
+repository = "https://github.com/your-name/my-zed-extension"
